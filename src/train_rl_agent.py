@@ -36,8 +36,8 @@ def train_agent():
     
     print("Starting Training...")
     # Train for N timesteps
-    # Increased to 100,000 for deeper learning
-    model.learn(total_timesteps=100000, log_interval=100)
+    # Reduced to 1000 for quick update of observation space
+    model.learn(total_timesteps=1000, log_interval=100)
     
     print("Training Complete.")
     

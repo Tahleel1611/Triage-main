@@ -35,13 +35,18 @@ def main():
     
     rl_intervention_count = 0
     
-    # Mock ED State
+    # Mock ED State (Occupancy Counts)
     ed_state = {
         'waiting': 5,
-        'critical_beds': 2,
-        'acute_beds': 10,
-        'fast_track': 5
+        'occ_critical': 2,
+        'occ_acute': 10,
+        'occ_fast': 5
     }
+    
+    # Capacities for normalization
+    MAX_CRITICAL = 10
+    MAX_ACUTE = 30
+    MAX_FAST = 20
     
     results = []
     
@@ -68,15 +73,23 @@ def main():
             rl_intervention_count += 1
             
             # Construct RL Observation
+            # [Probs(5), Risk(1), Embedding(10), Occupancy(4), Time(2)]
             risk = row['risk'] if 'risk' in row else 0.5
             embedding = np.zeros(10)
+            
+            # Normalize Occupancy
+            occ_norm = [
+                ed_state['waiting'] / 50.0,
+                ed_state['occ_critical'] / MAX_CRITICAL,
+                ed_state['occ_acute'] / MAX_ACUTE,
+                ed_state['occ_fast'] / MAX_FAST
+            ]
             
             obs = np.concatenate([
                 probs,
                 [risk],
                 embedding,
-                list(ed_state.values()),
-                [30.0],
+                occ_norm,
                 [0.5, 0.5]
             ]).astype(np.float32)
             
