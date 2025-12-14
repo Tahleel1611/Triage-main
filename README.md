@@ -33,7 +33,7 @@ The system operates in a hybrid mode:
 
 1.  **Clone the repository:**
     ```bash
-    git clone <repo-url>
+    git clone https://github.com/Tahleel1611/Triage-main.git
     cd Triage-main
     ```
 
