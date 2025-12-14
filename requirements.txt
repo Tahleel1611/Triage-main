@@ -11,3 +11,4 @@ tqdm
 shap
 transformers
 simple-icd-10
+streamlit
