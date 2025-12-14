@@ -9,3 +9,5 @@ seaborn
 joblib
 tqdm
 shap
+transformers
+simple-icd-10
