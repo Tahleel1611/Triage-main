@@ -28,8 +28,20 @@ def load_resources():
     
     return sup_model, rl_model, tokenizer, bert_model
 
+@st.cache_data
+def load_icd_codes():
+    try:
+        df = pd.read_csv('data/nhamcs_text_descriptions.csv')
+        # Drop duplicates to keep the list clean
+        df = df.drop_duplicates(subset=['Chief_complain'])
+        return df
+    except Exception as e:
+        st.error(f"Error loading ICD codes: {e}")
+        return pd.DataFrame(columns=['Chief_complain', 'Chief_complain_text'])
+
 try:
     sup_model, rl_model, tokenizer, bert_model = load_resources()
+    icd_df = load_icd_codes()
     st.success("System Loaded Successfully")
 except Exception as e:
     st.error(f"Error loading models: {e}")
@@ -78,8 +90,24 @@ with col2:
     # Checking run_on_nhamcs_bert.py: Categorical Pipeline uses OneHotEncoder.
     # So we pass the string directly in a DataFrame.
     
-    cc_code = st.text_input("Chief Complaint (ICD-10 Code)", value="R07.9")
-    cc_desc = get_icd_description(cc_code)
+    # cc_code = st.text_input("Chief Complaint (ICD-10 Code)", value="R07.9")
+    # cc_desc = get_icd_description(cc_code)
+    
+    # Dropdown for Chief Complaint
+    if not icd_df.empty:
+        cc_code = st.selectbox(
+            "Chief Complaint (ICD-10 Code)", 
+            options=icd_df['Chief_complain'].tolist(),
+            index=0
+        )
+        # Lookup description from the dataframe
+        row = icd_df[icd_df['Chief_complain'] == cc_code].iloc[0]
+        cc_desc = row['Chief_complain_text']
+    else:
+        # Fallback if file load fails
+        cc_code = st.text_input("Chief Complaint (ICD-10 Code)", value="R07.9")
+        cc_desc = get_icd_description(cc_code)
+
     st.info(f"Description: {cc_desc}")
 
 # --- Prediction Logic ---

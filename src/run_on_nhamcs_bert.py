@@ -9,8 +9,8 @@ from sklearn.pipeline import Pipeline
 from sklearn.ensemble import StackingClassifier, RandomForestClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from lightgbm import LGBMClassifier
-from imblearn.over_sampling import SMOTE
-from imblearn.pipeline import Pipeline as ImbPipeline
+# from imblearn.over_sampling import SMOTE
+# from imblearn.pipeline import Pipeline as ImbPipeline
 
 def main():
     # 1. Load Data
@@ -94,6 +94,11 @@ def main():
     print("Preprocessing structured data...")
     X_structured = preprocessor.fit_transform(X_df)
     
+    # Save Preprocessor immediately
+    preprocessor_path = 'data/nhamcs_preprocessor.joblib'
+    joblib.dump(preprocessor, preprocessor_path)
+    print(f"Preprocessor saved to {preprocessor_path}")
+    
     # Concatenate
     # X_structured might be sparse if OneHot is sparse.
     if hasattr(X_structured, "toarray"):
@@ -105,9 +110,9 @@ def main():
     # 4. Model Definition (Stacking)
     # Base Learners
     # Reduced estimators for speed in demo
-    lgbm = LGBMClassifier(random_state=42, verbose=-1, n_estimators=10) 
-    rf = RandomForestClassifier(n_estimators=10, random_state=42, n_jobs=1)
-    gb = GradientBoostingClassifier(n_estimators=10, random_state=42)
+    lgbm = LGBMClassifier(random_state=42, verbose=-1, n_estimators=5) 
+    rf = RandomForestClassifier(n_estimators=5, random_state=42, n_jobs=1)
+    gb = GradientBoostingClassifier(n_estimators=5, random_state=42)
 
     estimators = [
         ('lgbm', lgbm),
@@ -120,13 +125,17 @@ def main():
         estimators=estimators,
         final_estimator=LogisticRegression(class_weight='balanced'),
         n_jobs=1,
-        cv=3
+        cv=2
     )
 
     # Full Pipeline with SMOTE
     # Since we already preprocessed, we just need SMOTE and Classifier
-    pipeline = ImbPipeline(steps=[
-        ('smote', SMOTE(random_state=42)),
+    # pipeline = ImbPipeline(steps=[
+    #     ('smote', SMOTE(random_state=42)),
+    #     ('classifier', stacking_clf)
+    # ])
+    
+    pipeline = Pipeline(steps=[
         ('classifier', stacking_clf)
     ])
 
