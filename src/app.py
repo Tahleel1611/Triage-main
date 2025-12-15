@@ -101,55 +101,18 @@ if st.button("Run Triage Assessment"):
     embedding = get_bert_embedding(cc_desc, tokenizer, bert_model)
     
     # 3. Supervised Prediction
-    # The pipeline expects X_combined (Structured + BERT)
-    # Preprocess structured part
-    preprocessor = sup_model.named_steps['preprocessor'] # Access preprocessor from pipeline?
-    # Wait, the pipeline in run_on_nhamcs_bert.py was:
-    # pipeline = ImbPipeline([('smote', ...), ('classifier', ...)])
-    # The preprocessor was run OUTSIDE the pipeline in that script.
-    # This is a common issue. We need to replicate the preprocessing steps here.
-    
-    # Re-create preprocessor (or load it if we saved it separately, which we didn't)
-    # Ideally, we should have saved the full pipeline including preprocessing.
-    # Since we didn't, we must manually preprocess.
-    
-    # Numeric
-    num_cols = ['Age', 'Temp', 'Pulse', 'Resp', 'SBP', 'DBP', 'O2Sat', 'PainScale']
-    # We need the scaler fitted on training data. 
-    # Since we don't have it, we'll use a fresh scaler (Not ideal, but works for demo if values are normal)
-    # BETTER: Load the training data to fit the scaler once.
-    
-    # Hack for demo: Just pass raw values if model is robust, or fit on this single sample (bad).
-    # Let's try to load the preprocessor if possible. 
-    # Actually, let's just assume the model in the pipeline handles it? 
-    # No, the script `run_on_nhamcs_bert.py` did `X_structured = preprocessor.fit_transform(X_df)` then `pipeline.fit(X_combined, y)`.
-    # So the saved `nhamcs_bert_model.joblib` ONLY contains SMOTE + StackingClassifier. It does NOT contain the preprocessor.
-    
-    # FIX: We need to fit a preprocessor on the training data to transform this input correctly.
-    # For this demo, I will load a sample of training data to fit the scaler.
-    
     try:
-        train_df = pd.read_csv('data/nhamcs_combined.csv', nrows=100)
-        from sklearn.compose import ColumnTransformer
-        from sklearn.preprocessing import StandardScaler, OneHotEncoder
-        from sklearn.impute import SimpleImputer
-        from sklearn.pipeline import Pipeline
+        # Define numeric columns
+        num_cols = ['Age', 'Temp', 'Pulse', 'Resp', 'SBP', 'DBP', 'O2Sat', 'PainScale']
+
+        # Map Arrival Mode to numeric (matching training data)
+        arrival_map = {"Ambulance": 1.0, "Public Transport": 2.0, "Walk-in": 3.0, "Other": 4.0}
+        # Default to Walk-in (3.0) if not found
+        input_data['ArrivalMode'] = input_data['ArrivalMode'].map(arrival_map).fillna(3.0)
+
+        # Load Preprocessor
+        preprocessor = joblib.load('data/nhamcs_preprocessor.joblib')
         
-        numeric_transformer = Pipeline(steps=[
-            ('imputer', SimpleImputer(strategy='median')),
-            ('scaler', StandardScaler())
-        ])
-        categorical_transformer = Pipeline(steps=[
-            ('imputer', SimpleImputer(strategy='most_frequent')),
-            ('onehot', OneHotEncoder(handle_unknown='ignore'))
-        ])
-        preprocessor = ColumnTransformer(
-            transformers=[
-                ('num', numeric_transformer, num_cols),
-                ('cat', categorical_transformer, ['ArrivalMode'])
-            ])
-        
-        preprocessor.fit(train_df[num_cols + ['ArrivalMode']])
         X_struct = preprocessor.transform(input_data)
         if hasattr(X_struct, "toarray"): X_struct = X_struct.toarray()
         
@@ -188,8 +151,11 @@ if st.button("Run Triage Assessment"):
             obs = np.concatenate([probs, [risk], rl_emb, occ, time]).astype(np.float32)
             action, _ = rl_model.predict(obs, deterministic=True)
             
+            # Ensure action is an integer
+            action = int(action)
+            
             action_map = {0: 'Wait', 1: 'Fast Track', 2: 'Acute Care', 3: 'Critical Care', 4: 'Diagnostics'}
-            final_dec = action_map[action]
+            final_dec = action_map.get(action, "Unknown")
             c3.metric("Final Decision", final_dec, "By RL Agent")
             
         else:
@@ -223,9 +189,34 @@ if st.button("Run Triage Assessment"):
         
         # Plot
         fig, ax = plt.subplots()
-        # shap_values is list for multiclass, pick the predicted class
-        shap.summary_plot(shap_values[sup_pred], X_combined, feature_names=feat_names, plot_type="bar", max_display=10, show=False)
-        st.pyplot(fig)
+        
+        # Handle SHAP values structure (List vs Array)
+        shap_val_to_plot = None
+        
+        if isinstance(shap_values, list):
+            # List of arrays (one per class)
+            if sup_pred < len(shap_values):
+                shap_val_to_plot = shap_values[sup_pred]
+            else:
+                shap_val_to_plot = shap_values[-1] # Fallback
+        elif isinstance(shap_values, np.ndarray):
+            # Array
+            if len(shap_values.shape) == 3:
+                # (n_samples, n_features, n_classes)
+                # We want (n_samples, n_features) for the specific class
+                shap_val_to_plot = shap_values[:, :, sup_pred]
+            elif len(shap_values.shape) == 2:
+                # (n_samples, n_features) - Binary or Regression
+                shap_val_to_plot = shap_values
+            else:
+                st.warning(f"Unexpected SHAP shape: {shap_values.shape}")
+                shap_val_to_plot = shap_values
+
+        if shap_val_to_plot is not None:
+            shap.summary_plot(shap_val_to_plot, X_combined, feature_names=feat_names, plot_type="bar", max_display=10, show=False)
+            st.pyplot(fig)
+        else:
+            st.warning("Could not extract SHAP values for plotting.")
         
     except Exception as e:
         st.error(f"Prediction Error: {e}")

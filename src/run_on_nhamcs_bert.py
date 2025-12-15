@@ -105,9 +105,9 @@ def main():
     # 4. Model Definition (Stacking)
     # Base Learners
     # Reduced estimators for speed in demo
-    lgbm = LGBMClassifier(random_state=42, verbose=-1, n_estimators=50) 
-    rf = RandomForestClassifier(n_estimators=50, random_state=42, n_jobs=1)
-    gb = GradientBoostingClassifier(n_estimators=20, random_state=42)
+    lgbm = LGBMClassifier(random_state=42, verbose=-1, n_estimators=10) 
+    rf = RandomForestClassifier(n_estimators=10, random_state=42, n_jobs=1)
+    gb = GradientBoostingClassifier(n_estimators=10, random_state=42)
 
     estimators = [
         ('lgbm', lgbm),
@@ -131,11 +131,11 @@ def main():
     ])
 
     # 5. Evaluation
-    print("\nStarting Cross-Validation (3-fold)...")
-    cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
-    scores = cross_val_score(pipeline, X_combined, y, cv=cv, scoring='accuracy', n_jobs=1, verbose=2)
+    print("\nSkipping Cross-Validation...")
+    # cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
+    # scores = cross_val_score(pipeline, X_combined, y, cv=cv, scoring='accuracy', n_jobs=1, verbose=2)
 
-    print(f"\nMean Accuracy: {scores.mean():.4f} (+/- {scores.std():.4f})")
+    # print(f"\nMean Accuracy: {scores.mean():.4f} (+/- {scores.std():.4f})")
 
     # 6. Train Final Model
     print("\nTraining final model on full dataset...")
@@ -145,6 +145,11 @@ def main():
     model_path = 'data/nhamcs_bert_model.joblib'
     joblib.dump(pipeline, model_path)
     print(f"Model saved to {model_path}")
+
+    # Save Preprocessor
+    preprocessor_path = 'data/nhamcs_preprocessor.joblib'
+    joblib.dump(preprocessor, preprocessor_path)
+    print(f"Preprocessor saved to {preprocessor_path}")
 
 if __name__ == "__main__":
     main()
