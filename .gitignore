@@ -50,3 +50,26 @@ output/
 # OS
 .DS_Store
 Thumbs.db
+
+# Environment & Secrets (CRITICAL - Never commit!)
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+secrets/
+
+# Database files (use synthetic data only!)
+*.db
+*.sqlite
+*.sqlite3
+triage_dev.db
+
+# Node modules
+node_modules/
+.next/
+out/
+
+# Docker
+*.tar
+docker-compose.override.yml

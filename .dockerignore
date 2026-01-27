@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Build outputs
+.next/
+dist/
+build/
+*.egg-info/
+
+# Version control
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs and databases
+*.log
+*.db
+*.sqlite
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Data files (use volumes instead)
+data/
+output/
+
+# Documentation
+*.md
+!README.md
+LICENSE
+
+# Notebooks
+*.ipynb
