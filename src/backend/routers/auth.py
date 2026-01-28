@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas, security
 from ..database import get_db
+from ..deps import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -42,3 +43,52 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
 
     access_token = security.create_access_token(subject=str(user.id), role=user.role.value)
     return schemas.Token(access_token=access_token)
+
+
+@router.get("/me")
+def get_current_user_info(
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get current user info including patient profile if exists."""
+    result = {
+        "id": user.id,
+        "email": user.email,
+        "role": user.role.value,
+        "patient_profile": None
+    }
+    if user.patient_profile:
+        result["patient_profile"] = {
+            "id": user.patient_profile.id,
+            "first_name": user.patient_profile.first_name,
+            "last_name": user.patient_profile.last_name,
+        }
+    return result
+
+
+@router.post("/patient-profile", response_model=schemas.PatientOut)
+def create_patient_profile(
+    payload: schemas.PatientBase,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Create a patient profile for the current user."""
+    if user.patient_profile:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Patient profile already exists"
+        )
+    
+    patient = models.Patient(
+        user_id=user.id,
+        first_name=payload.first_name,
+        last_name=payload.last_name,
+        date_of_birth=payload.date_of_birth,
+        phone=payload.phone,
+        address=payload.address,
+        allergies=payload.allergies,
+    )
+    db.add(patient)
+    db.commit()
+    db.refresh(patient)
+    return patient

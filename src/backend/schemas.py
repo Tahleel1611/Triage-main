@@ -128,3 +128,45 @@ class PriorityTokenOut(BaseModel):
     issued_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# --- Vitals History (Sparklines) ---
+class VitalHistoryPoint(BaseModel):
+    timestamp: datetime
+    hr: Optional[float] = None
+    sbp: Optional[float] = None
+    rr: Optional[float] = None
+    o2_sat: Optional[float] = None
+
+
+class VitalHistoryResponse(BaseModel):
+    patient_id: int
+    history: List[VitalHistoryPoint]
+
+
+# --- Shift Handoff ---
+class HandoffPatient(BaseModel):
+    appointment_id: int
+    patient_id: int
+    patient_name: str
+    token: str
+    triage_level: int
+    chief_complaint: str
+    vitals_summary: str
+    trend_status: str  # "stable", "improving", "deteriorating"
+    shock_index: Optional[float] = None
+    time_in_ed: Optional[int] = None  # minutes
+    action: Optional[str] = None
+
+
+class HandoffReport(BaseModel):
+    generated_at: datetime
+    total_patients: int
+    critical_count: int  # ESI 1-2
+    urgent_count: int    # ESI 3
+    stable_count: int    # ESI 4-5
+    avg_wait_minutes: Optional[float] = None
+    summary: str  # AI-generated summary
+    alerts: List[str]  # Critical alerts
+    watch_list: List[HandoffPatient]  # High-acuity patients
+    all_patients: List[HandoffPatient]

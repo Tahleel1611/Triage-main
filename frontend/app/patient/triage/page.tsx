@@ -51,13 +51,11 @@ export default function PatientTriagePage() {
     setError(null);
 
     try {
-      // For demo purposes, we'll use a mock token
-      // In production, you'd get this from the auth flow
-      const response = await fetch(`${API_BASE}/triage/assess`, {
+      // Public kiosk endpoint - no authentication required
+      const response = await fetch(`${API_BASE}/triage/kiosk`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          // In production: "Authorization": `Bearer ${token}`
         },
         body: JSON.stringify({
           chief_complaint: symptoms,
@@ -72,7 +70,6 @@ export default function PatientTriagePage() {
             DBP: 80,
             O2Sat: 98,
             PainScale: painLevel,
-            patient_id: 1, // Demo patient
           },
         }),
       });

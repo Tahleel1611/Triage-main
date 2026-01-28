@@ -65,6 +65,42 @@ def _persist_shap_async(appointment_id: int, shap_payload: Any):
         db.close()
 
 
+def _get_current_user_optional(
+    token: str = None,
+    db: Session = None,
+):
+    """Import helper to avoid circular imports."""
+    from ..deps import get_current_user_optional
+    return get_current_user_optional
+
+
+@router.post("/kiosk", response_model=schemas.TriageResponse)
+def kiosk_triage_assessment(
+    payload: schemas.TriageRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """
+    Public kiosk endpoint for walk-in patient self-triage.
+    Creates a temporary patient record automatically - no authentication required.
+    """
+    # Create a walk-in patient record
+    age = payload.static_vitals.get("Age", 30) if payload.static_vitals else 30
+    patient = models.Patient(
+        first_name="Walk-In",
+        last_name=f"Patient-{datetime.utcnow().strftime('%H%M%S')}",
+        date_of_birth=datetime(datetime.utcnow().year - int(age), 1, 1).date(),
+        sex=models.Sex.UNKNOWN,
+    )
+    db.add(patient)
+    db.commit()
+    db.refresh(patient)
+    
+    # Run the triage assessment
+    return _run_triage_assessment(payload, request, background_tasks, db, patient)
+
+
 @router.post("/assess", response_model=schemas.TriageResponse)
 def triage_assessment(
     payload: schemas.TriageRequest,
@@ -73,6 +109,7 @@ def triage_assessment(
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
 ):
+    """Authenticated triage assessment endpoint."""
     patient_id = None
     if user.role == models.UserRole.PATIENT:
         if not user.patient_profile:
@@ -88,6 +125,17 @@ def triage_assessment(
     if not patient:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found")
 
+    return _run_triage_assessment(payload, request, background_tasks, db, patient)
+
+
+def _run_triage_assessment(
+    payload: schemas.TriageRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session,
+    patient: models.Patient,
+):
+    """Core triage assessment logic shared by authenticated and kiosk endpoints."""
     app_state = request.app.state
     
     # Check if models are loaded (support dev mode with mock models)
@@ -175,6 +223,7 @@ def triage_assessment(
         {
             "event_type": "new_patient",
             "appointment_id": appointment.id,
+            "patient_id": patient_id,
             "token": token.token_number,
             "triage_level": triage_level,
             "priority_score": token.priority_score,
@@ -262,3 +311,60 @@ def get_triage_result(
         "vitals": triage.vitals,
         "created_at": triage.created_at.isoformat() if triage.created_at else None,
     }
+
+
+@router.get("/{patient_id}/vitals-history", response_model=schemas.VitalHistoryResponse)
+def get_vitals_history(
+    patient_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+    limit: int = 20,
+):
+    """
+    Fetch historical vitals for a patient (for sparkline charts).
+    Returns the last N triage results ordered by timestamp ascending.
+    """
+    # Verify patient exists
+    patient = db.get(models.Patient, patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    # Query triage results via appointments for this patient
+    results = (
+        db.query(models.TriageResult)
+        .join(models.Appointment, models.TriageResult.appointment_id == models.Appointment.id)
+        .filter(models.Appointment.patient_id == patient_id)
+        .order_by(models.TriageResult.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+    # Reverse to get ascending order (oldest first for sparkline)
+    results = list(reversed(results))
+
+    history = []
+    for tr in results:
+        vitals = tr.vitals or {}
+        # Handle JSON string format (legacy data)
+        if isinstance(vitals, str):
+            import json
+            try:
+                vitals = json.loads(vitals)
+            except (json.JSONDecodeError, TypeError):
+                vitals = {}
+
+        # Normalize keys: Pulse -> HR
+        hr = vitals.get("HR") or vitals.get("Pulse")
+        sbp = vitals.get("SBP")
+        rr = vitals.get("RR") or vitals.get("Resp")
+        o2_sat = vitals.get("O2Sat") or vitals.get("O2_Sat")
+
+        history.append(schemas.VitalHistoryPoint(
+            timestamp=tr.created_at,
+            hr=hr,
+            sbp=sbp,
+            rr=rr,
+            o2_sat=o2_sat,
+        ))
+
+    return schemas.VitalHistoryResponse(patient_id=patient_id, history=history)
