@@ -8,3 +8,5 @@ pydantic-settings
 alembic
 python-multipart
 aiosqlite
+numpy
+joblib
