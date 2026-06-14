@@ -3,7 +3,12 @@ from contextlib import asynccontextmanager
 
 import numpy as np
 import joblib
-import torch
+try:
+        import torch
+        TORCH_AVAILABLE = True
+    except ImportError:
+            torch = None
+            TORCH_AVAILABLE = False
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
